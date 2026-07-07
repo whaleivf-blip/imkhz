@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>야구 테마 타이머</title>
+    <style>
+        :root {
+            --baseball-blue: #0066b2;
+            --baseball-white: #ffffff;
+            --baseball-silver: #c0c0c0;
+            --baseball-red: #ea0029;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 95vh;
+            overflow: hidden;
+        }
+
+        .timer-card {
+            background-color: var(--baseball-white);
+            border: 8px solid var(--baseball-blue);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 550px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 102, 178, 0.15);
+            position: relative;
+        }
+
+        .header-spacer {
+            height: 20px;
+        }
+
+        .display-container {
+            background-color: var(--baseball-blue);
+            color: var(--baseball-white);
+            padding: 30px;
+            border-radius: 16px;
+            font-size: 90px;
+            font-weight: bold;
+            margin-bottom: 30px;
+            font-variant-numeric: tabular-nums;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .control-group {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-blue {
+            background-color: var(--baseball-blue);
+            color: var(--baseball-white);
+            border: 2px solid var(--baseball-blue);
+        }
+        .btn-blue:hover {
+            background-color: var(--baseball-white);
+            color: var(--baseball-blue);
+        }
+
+        .btn-white {
+            background-color: var(--baseball-white);
+            color: var(--baseball-blue);
+            border: 2px solid var(--baseball-blue);
+        }
+        .btn-white:hover {
+            background-color: var(--baseball-blue);
+            color: var(--baseball-white);
+        }
+
+        .btn-red {
+            background-color: var(--baseball-red);
+            color: var(--baseball-white);
+            border: 2px solid var(--baseball-red);
+        }
+
+        .input-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 25px;
+            font-size: 18px;
+            color: var(--baseball-blue);
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 60px;
+            padding: 8px;
+            font-size: 18px;
+            border: 2px solid var(--baseball-blue);
+            border-radius: 8px;
+            text-align: center;
+            color: var(--baseball-blue);
+            font-weight: bold;
+        }
+
+        .baseball-pitch {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, #fff 60%, #ccc 100%);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        .baseball-pitch::before, .baseball-pitch::after {
+            content: '';
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border: 2px solid var(--baseball-red);
+            border-radius: 50%;
+        }
+        .baseball-pitch::before { left: -40px; }
+        .baseball-pitch::after { right: -40px; }
+
+        @keyframes pitchAnimation {
+            0% { transform: translate(-50%, -50%) scale(0.1) rotate(0deg); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+        }
+
+        .animate-pitch {
+            animation: pitchAnimation 0.8s linear infinite;
+        }
+    </style>
+</head>
+<body>
+
+<div class="timer-card">
+    <div class="header-spacer"></div>
+
+    <!-- 시간 설정 박스 -->
+    <div class="input-group">
+        <input type="number" id="minInput" min="0" max="99" value="0"> 분
+        <input type="number" id="secInput" min="0" max="59" value="12"> 초
+        <button class="btn btn-blue" style="padding: 8px 15px; font-size: 14px; flex: none;" onclick="setCustomTime()">적용</button>
+    </div>
+
+    <!-- 전광판 화면 및 야구공 이펙트 -->
+    <div class="display-container">
+        <div id="timeDisplay">00:12</div>
+        <div id="baseball" class="baseball-pitch">⚾</div>
+    </div>
+
+    <!-- 제어 버튼 -->
+    <div class="control-group">
+        <button class="btn btn-white" id="startBtn" onclick="toggleTimer()">PLAY</button>
+        <button class="btn btn-blue" onclick="resetTimer()">RESET</button>
+    </div>
+</div>
+
+<script>
+    let timerId = null;
+    let timeLeft = 12; 
+    let isRunning = false;
+    let audioCtx = null;
+
+    const timeDisplay = document.getElementById('timeDisplay');
+    const startBtn = document.getElementById('startBtn');
+    const baseball = document.getElementById('baseball');
+    const minInput = document.getElementById('minInput');
+    const secInput = document.getElementById('secInput');
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playMlbOrgan() {
+        initAudio();
+        const now = audioCtx.currentTime;
+        
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99]; 
+        const durations = [0.15, 0.15, 0.15, 0.15, 0.15, 0.4]; 
+        
+        let startTime = now;
+
+        notes.forEach((freq, index) => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = 'triangle'; 
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            gainNode.gain.setValueAtTime(0.3, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + durations[index]);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + durations[index]);
+            
+            startTime += durations[index] - 0.02;
+        });
+
+        setTimeout(() => {
+            const finalOsc = audioCtx.createOscillator();
+            const finalGain = audioCtx.createGain();
+            finalOsc.type = 'triangle';
+            finalOsc.frequency.setValueAtTime(1046.50, audioCtx.currentTime); 
+            finalGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            finalGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+            
+            finalOsc.connect(finalGain);
+            finalGain.connect(audioCtx.destination);
+            finalOsc.start();
+            finalOsc.stop(audioCtx.currentTime + 0.6);
+        }, 850);
+    }
+
+    function updateDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timeDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function setCustomTime() {
+        stopTimer();
+        const min = parseInt(minInput.value) || 0;
+        const sec = parseInt(secInput.value) || 0;
+        timeLeft = (min * 60) + sec;
+        updateDisplay();
+        checkTenSeconds();
+    }
+
+    function toggleTimer() {
+        initAudio(); 
+        if (isRunning) {
+            stopTimer();
+        } else {
+            startTimer();
+        }
+    }
+
+    function startTimer() {
+        if (timeLeft <= 0) return;
+        isRunning = true;
+        startBtn.textContent = 'PAUSE';
+        startBtn.className = 'btn btn-red';
+
+        timerId = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            checkTenSeconds();
+
+            if (timeLeft <= 0) {
+                clearInterval(timerId);
+                isRunning = false;
+                startBtn.textContent = 'PLAY';
+                startBtn.className = 'btn btn-white';
+                baseball.classList.remove('animate-pitch');
+                
+                playMlbOrgan();
+            }
+        }, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(timerId);
+        isRunning = false;
+        startBtn.textContent = 'PLAY';
+        startBtn.className = 'btn btn-white';
+        baseball.classList.remove('animate-pitch');
+    }
+
+    function resetTimer() {
+        stopTimer();
+        timeLeft = 12; 
+        minInput.value = 0;
+        secInput.value = 12;
+        updateDisplay();
+    }
+
+    function checkTenSeconds() {
+        if (timeLeft <= 10 && timeLeft > 0 && isRunning) {
+            baseball.classList.add('animate-pitch');
+        } else {
+            baseball.classList.remove('animate-pitch');
+        }
+    }
+
+    updateDisplay();
+</script>
+
+</body>
+</html>
